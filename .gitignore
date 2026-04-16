@@ -1,0 +1,21 @@
+# WRDS licensed data (large, do not commit)
+data/raw/
+
+# Trained model artifacts (re-generate from features.csv)
+models/*.joblib
+models/*.pkl
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+.venv/
+
+# macOS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+.claude/
