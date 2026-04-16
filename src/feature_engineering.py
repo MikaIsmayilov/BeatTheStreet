@@ -44,8 +44,12 @@ Estimate revision features (computed from I/B/E/S):
 """
 
 import os
+import sys
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(__file__))
+from macro_features import build_macro_monthly, join_macro_to_earnings
 
 RAW_DIR  = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 PROC_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
@@ -281,6 +285,13 @@ FINAL_FEATURES = [
     "current_ratio", "asset_growth", "op_margin",
     # CRSP
     "ret_1m", "ret_3m", "ret_6m", "vol_ratio", "prc",
+    # Macro (FRED)
+    "oil_1m_ret", "oil_3m_ret",
+    "vix_level", "vix_1m_chg",
+    "gs10_level", "gs10_1m_chg",
+    "hy_spread", "hy_spread_chg",
+    "gdp_growth",
+    "unrate", "unrate_chg",
 ]
 
 
@@ -303,6 +314,11 @@ def main():
     crsp_feat  = build_crsp_features(crsp)
 
     merged = merge_all(comp_feat, ibes_feat, ccm, crsp_feat)
+
+    print("\nJoining macro features from FRED...")
+    macro = build_macro_monthly()
+    merged = join_macro_to_earnings(merged, macro)
+
     save_features(merged)
 
     print("\nNext step: run  python src/train_model.py")
