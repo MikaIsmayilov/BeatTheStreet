@@ -6,6 +6,7 @@ import os
 import re
 import base64
 import streamlit as st
+import streamlit.components.v1 as _components
 
 ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
 
@@ -13,30 +14,69 @@ ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
 with open(os.path.join(ASSETS, "beatthestreet_logo.svg"), "r") as _f:
     _svg = _f.read()
 
-_dark = (st.get_option("theme.base") or "light") == "dark"
-if _dark:
-    _wm, _tl, _dv, _cr, _cg = "#ffffff", "#00e396", "#333d4d", "#ff4d6a", "#00e396"
-else:
-    _wm, _tl, _dv, _cr, _cg = "#0a0e13", "#00a86b", "#cbd5e0", "#e03050", "#00a86b"
 
-# Replace <style> block with theme-correct colors and no @media query so the
-# SVG renders correctly regardless of OS dark/light preference.
-_style = (
-    f"  <style>\n"
-    f"    .wordmark {{ fill: {_wm}; }}\n"
-    f"    .tagline  {{ fill: {_tl}; }}\n"
-    f"    .divider  {{ stroke: {_dv}; }}\n"
-    f"    .c-red    {{ fill: {_cr}; }}\n"
-    f"    .w-red    {{ stroke: {_cr}; }}\n"
-    f"    .c-green  {{ fill: {_cg}; }}\n"
-    f"    .w-green  {{ stroke: {_cg}; }}\n"
-    f"  </style>"
-)
-_svg_themed = re.sub(r"<style>.*?</style>", _style, _svg, flags=re.DOTALL)
-_b64 = base64.b64encode(_svg_themed.encode()).decode()
-st.markdown(
-    f'<img src="data:image/svg+xml;base64,{_b64}" width="780" style="max-width:100%">',
-    unsafe_allow_html=True,
+def _bake_svg(svg: str, dark: bool) -> str:
+    """Replace <style> block with hardcoded theme colors and return base64."""
+    if dark:
+        wm, tl, dv, cr, cg = "#ffffff", "#00e396", "#333d4d", "#ff4d6a", "#00e396"
+    else:
+        wm, tl, dv, cr, cg = "#0a0e13", "#00a86b", "#cbd5e0", "#e03050", "#00a86b"
+    style = (
+        f"  <style>\n"
+        f"    .wordmark {{ fill: {wm}; }}\n"
+        f"    .tagline  {{ fill: {tl}; }}\n"
+        f"    .divider  {{ stroke: {dv}; }}\n"
+        f"    .c-red    {{ fill: {cr}; }}\n"
+        f"    .w-red    {{ stroke: {cr}; }}\n"
+        f"    .c-green  {{ fill: {cg}; }}\n"
+        f"    .w-green  {{ stroke: {cg}; }}\n"
+        f"  </style>"
+    )
+    themed = re.sub(r"<style>.*?</style>", style, svg, flags=re.DOTALL)
+    return base64.b64encode(themed.encode()).decode()
+
+
+_b64_light = _bake_svg(_svg, dark=False)
+_b64_dark  = _bake_svg(_svg, dark=True)
+
+# Detect the actual active Streamlit theme via JS reading the parent window's
+# background color (st.get_option("theme.base") only reads config.toml, not
+# the user's active theme selection). Falls back to prefers-color-scheme.
+_components.html(
+    f"""<!DOCTYPE html>
+<html><head>
+<style>
+  html, body {{ margin:0; padding:0; overflow:hidden; }}
+  img {{ max-width:780px; width:100%; display:block; }}
+</style>
+</head><body>
+<img id="logo" src="data:image/svg+xml;base64,{_b64_light}">
+<script>
+(function() {{
+  function applyTheme() {{
+    var isDark = false;
+    try {{
+      var p  = window.parent.document;
+      var el = p.querySelector('[data-testid="stApp"]') || p.body;
+      var bg = window.parent.getComputedStyle(el).backgroundColor;
+      var r  = parseInt((bg.match(/\d+/g) || [255])[0], 10);
+      isDark = r < 50;
+      document.body.style.background = isDark ? '#0e1117' : bg;
+    }} catch(e) {{
+      isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.body.style.background = isDark ? '#0e1117' : '#ffffff';
+    }}
+    document.getElementById('logo').src = isDark
+      ? 'data:image/svg+xml;base64,{_b64_dark}'
+      : 'data:image/svg+xml;base64,{_b64_light}';
+  }}
+  applyTheme();
+  setTimeout(applyTheme, 80);
+}})();
+</script>
+</body></html>""",
+    height=165,
+    scrolling=False,
 )
 
 st.markdown("""
