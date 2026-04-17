@@ -95,7 +95,7 @@ def get_prediction(sym: str, _artifacts: dict) -> tuple[str, float]:
 
 
 # ── Page ──────────────────────────────────────────────────────────────────────
-st.title("📅 Upcoming Earnings Calendar")
+st.title("Upcoming Earnings Calendar")
 st.markdown("Model predictions for major companies reporting in the next 30 days.")
 
 artifacts = load_artifacts()

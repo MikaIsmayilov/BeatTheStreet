@@ -79,7 +79,7 @@ def compute_sector_stats():
 
 
 # ── Page ──────────────────────────────────────────────────────────────────────
-st.title("🏭 Sector Overview")
+st.title("Sector Overview")
 st.markdown("Historical beat/miss rates and model accuracy broken down by sector.")
 
 art  = load_artifacts()
@@ -144,7 +144,7 @@ col_l, col_r = st.columns(2)
 qualified = hist_sector[hist_sector["total"] >= 20]
 
 with col_l:
-    st.markdown("**🟢 Top Consistent Beaters**")
+    st.markdown("**Top Consistent Beaters**")
     top_beat = (qualified.nlargest(10, "beat_rate")[["beat_rate", "total"]]
                          .reset_index()
                          .rename(columns={"conm": "Company",
@@ -154,7 +154,7 @@ with col_l:
     st.dataframe(top_beat, use_container_width=True, hide_index=True)
 
 with col_r:
-    st.markdown("**🔴 Top Consistent Missers**")
+    st.markdown("**Top Consistent Missers**")
     top_miss = (qualified.nlargest(10, "miss_rate")[["miss_rate", "total"]]
                          .reset_index()
                          .rename(columns={"conm": "Company",

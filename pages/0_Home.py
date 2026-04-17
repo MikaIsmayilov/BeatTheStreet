@@ -75,13 +75,14 @@ with col_a:
 
 with col_b:
     st.markdown("### Navigate")
-    st.page_link("pages/1_Earnings_Predictor.py", label="🔮 Earnings Predictor",  help="Enter a ticker for a live forecast")
-    st.page_link("pages/2_Earnings_Calendar.py",  label="📅 Earnings Calendar",   help="Upcoming earnings this week")
-    st.page_link("pages/4_Sector_Overview.py",    label="🏭 Sector Overview",     help="Beat/miss rates by sector")
-    st.page_link("pages/3_Backtesting.py",        label="📊 Backtesting",         help="Historical model performance")
+    st.page_link("pages/1_Chart.py",              label="Price Chart",        help="Interactive candlestick chart")
+    st.page_link("pages/1_Earnings_Predictor.py", label="Earnings Predictor", help="Enter a ticker for a live forecast")
+    st.page_link("pages/2_Earnings_Calendar.py",  label="Earnings Calendar",  help="Upcoming earnings this week")
+    st.page_link("pages/4_Sector_Overview.py",    label="Sector Overview",    help="Beat/miss rates by sector")
+    st.page_link("pages/3_Backtesting.py",        label="Backtesting",        help="Historical model performance")
 
 st.divider()
 st.caption(
-    "⚠️ For informational and educational purposes only. Not financial advice. "
+    "For informational and educational purposes only. Not financial advice. "
     "Predictions are probabilistic and may be incorrect — do not use as the sole basis for any investment decision."
 )

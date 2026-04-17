@@ -22,10 +22,11 @@ st.set_page_config(
 inject_sidebar()
 
 pg = st.navigation([
-    st.Page("pages/0_Home.py",               title="Home",               icon="🏠", default=True),
-    st.Page("pages/1_Earnings_Predictor.py", title="Earnings Predictor", icon="🔮"),
-    st.Page("pages/2_Earnings_Calendar.py",  title="Earnings Calendar",  icon="📅"),
-    st.Page("pages/4_Sector_Overview.py",    title="Sector Overview",    icon="🏭"),
-    st.Page("pages/3_Backtesting.py",        title="Backtesting",        icon="📊"),
+    st.Page("pages/0_Home.py",               title="Home",               default=True),
+    st.Page("pages/1_Chart.py",              title="Price Chart"),
+    st.Page("pages/1_Earnings_Predictor.py", title="Earnings Predictor"),
+    st.Page("pages/2_Earnings_Calendar.py",  title="Earnings Calendar"),
+    st.Page("pages/4_Sector_Overview.py",    title="Sector Overview"),
+    st.Page("pages/3_Backtesting.py",        title="Backtesting"),
 ])
 pg.run()

@@ -81,7 +81,7 @@ def run_backtest():
 
 
 # ── Page ──────────────────────────────────────────────────────────────────────
-st.title("📊 Model Backtesting")
+st.title("Model Backtesting")
 st.markdown("Out-of-sample performance on the **2022–2024 test set** (never seen during training).")
 
 bt = run_backtest()
