@@ -3,6 +3,8 @@ Home Page — BeatTheStreet landing page.
 """
 
 import os
+import re
+import base64
 import streamlit as st
 
 ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
@@ -11,28 +13,31 @@ ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
 with open(os.path.join(ASSETS, "beatthestreet_logo.svg"), "r") as _f:
     _svg = _f.read()
 
-# Override SVG's prefers-color-scheme with Streamlit's actual theme so the
-# logo renders correctly even when OS mode ≠ Streamlit theme.
 _dark = (st.get_option("theme.base") or "light") == "dark"
 if _dark:
-    _c = dict(wordmark="#ffffff", tagline="#00e396", divider="#333d4d",
-               c_red="#ff4d6a", w_red="#ff4d6a", c_green="#00e396", w_green="#00e396")
+    _wm, _tl, _dv, _cr, _cg = "#ffffff", "#00e396", "#333d4d", "#ff4d6a", "#00e396"
 else:
-    _c = dict(wordmark="#0a0e13", tagline="#00a86b", divider="#cbd5e0",
-               c_red="#e03050", w_red="#e03050", c_green="#00a86b", w_green="#00a86b")
+    _wm, _tl, _dv, _cr, _cg = "#0a0e13", "#00a86b", "#cbd5e0", "#e03050", "#00a86b"
 
-st.markdown(f"""
-<style>
-.bts-logo .wordmark {{ fill: {_c['wordmark']} !important; }}
-.bts-logo .tagline  {{ fill: {_c['tagline']}  !important; }}
-.bts-logo .divider  {{ stroke: {_c['divider']} !important; }}
-.bts-logo .c-red    {{ fill: {_c['c_red']}   !important; }}
-.bts-logo .w-red    {{ stroke: {_c['w_red']}  !important; }}
-.bts-logo .c-green  {{ fill: {_c['c_green']}  !important; }}
-.bts-logo .w-green  {{ stroke: {_c['w_green']} !important; }}
-</style>
-<div class="bts-logo" style="max-width:780px">{_svg}</div>
-""", unsafe_allow_html=True)
+# Replace <style> block with theme-correct colors and no @media query so the
+# SVG renders correctly regardless of OS dark/light preference.
+_style = (
+    f"  <style>\n"
+    f"    .wordmark {{ fill: {_wm}; }}\n"
+    f"    .tagline  {{ fill: {_tl}; }}\n"
+    f"    .divider  {{ stroke: {_dv}; }}\n"
+    f"    .c-red    {{ fill: {_cr}; }}\n"
+    f"    .w-red    {{ stroke: {_cr}; }}\n"
+    f"    .c-green  {{ fill: {_cg}; }}\n"
+    f"    .w-green  {{ stroke: {_cg}; }}\n"
+    f"  </style>"
+)
+_svg_themed = re.sub(r"<style>.*?</style>", _style, _svg, flags=re.DOTALL)
+_b64 = base64.b64encode(_svg_themed.encode()).decode()
+st.markdown(
+    f'<img src="data:image/svg+xml;base64,{_b64}" width="780" style="max-width:100%">',
+    unsafe_allow_html=True,
+)
 
 st.markdown("""
 Will a company **beat**, **meet**, or **miss** Wall Street's EPS estimates?
