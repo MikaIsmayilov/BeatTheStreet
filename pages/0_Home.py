@@ -8,8 +8,31 @@ import streamlit as st
 ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
 
 # ── Header ────────────────────────────────────────────────────────────────────
-st.image(os.path.join(ASSETS, "beatthestreet_logo.png"), width=780)
-st.subheader("Earnings Surprise Predictor")
+with open(os.path.join(ASSETS, "beatthestreet_logo.svg"), "r") as _f:
+    _svg = _f.read()
+
+# Override SVG's prefers-color-scheme with Streamlit's actual theme so the
+# logo renders correctly even when OS mode ≠ Streamlit theme.
+_dark = (st.get_option("theme.base") or "light") == "dark"
+if _dark:
+    _c = dict(wordmark="#ffffff", tagline="#00e396", divider="#333d4d",
+               c_red="#ff4d6a", w_red="#ff4d6a", c_green="#00e396", w_green="#00e396")
+else:
+    _c = dict(wordmark="#0a0e13", tagline="#00a86b", divider="#cbd5e0",
+               c_red="#e03050", w_red="#e03050", c_green="#00a86b", w_green="#00a86b")
+
+st.markdown(f"""
+<style>
+.bts-logo .wordmark {{ fill: {_c['wordmark']} !important; }}
+.bts-logo .tagline  {{ fill: {_c['tagline']}  !important; }}
+.bts-logo .divider  {{ stroke: {_c['divider']} !important; }}
+.bts-logo .c-red    {{ fill: {_c['c_red']}   !important; }}
+.bts-logo .w-red    {{ stroke: {_c['w_red']}  !important; }}
+.bts-logo .c-green  {{ fill: {_c['c_green']}  !important; }}
+.bts-logo .w-green  {{ stroke: {_c['w_green']} !important; }}
+</style>
+<div class="bts-logo" style="max-width:780px">{_svg}</div>
+""", unsafe_allow_html=True)
 
 st.markdown("""
 Will a company **beat**, **meet**, or **miss** Wall Street's EPS estimates?

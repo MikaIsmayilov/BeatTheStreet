@@ -1,0 +1,71 @@
+<svg width="900" height="180" viewBox="0 0 900 180" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>BeatTheStreet logo</title>
+  <desc>BEAT and STREET in bold text with a dramatic candlestick chart in the gap — red candles falling then a green spike upward</desc>
+
+  <style>
+    .wordmark { fill: #0a0e13; }
+    .tagline  { fill: #00a86b; }
+    .divider  { stroke: #cbd5e0; }
+    .c-red    { fill: #e03050; }
+    .w-red    { stroke: #e03050; }
+    .c-green  { fill: #00a86b; }
+    .w-green  { stroke: #00a86b; }
+
+    @media (prefers-color-scheme: dark) {
+      .wordmark { fill: #ffffff; }
+      .tagline  { fill: #00e396; }
+      .divider  { stroke: #333d4d; }
+      .c-red    { fill: #ff4d6a; }
+      .w-red    { stroke: #ff4d6a; }
+      .c-green  { fill: #00e396; }
+      .w-green  { stroke: #00e396; }
+    }
+  </style>
+
+  <text
+    x="18" y="112"
+    font-family="Arial Black, sans-serif"
+    font-weight="900"
+    font-size="100"
+    class="wordmark"
+    letter-spacing="-4">BEAT</text>
+
+  <g transform="translate(320, 8)">
+    <rect x="0"  y="78" width="13" height="20" rx="1.5" class="c-red"/>
+    <line x1="6.5"  y1="70" x2="6.5"  y2="104" class="w-red" stroke-width="1.5" stroke-linecap="round"/>
+
+    <rect x="18" y="68" width="13" height="26" rx="1.5" class="c-red"/>
+    <line x1="24.5" y1="60" x2="24.5" y2="100" class="w-red" stroke-width="1.5" stroke-linecap="round"/>
+
+    <rect x="36" y="74" width="13" height="22" rx="1.5" class="c-red"/>
+    <line x1="42.5" y1="66" x2="42.5" y2="102" class="w-red" stroke-width="1.5" stroke-linecap="round"/>
+
+    <rect x="54" y="62" width="13" height="28" rx="1.5" class="c-red"/>
+    <line x1="60.5" y1="52" x2="60.5" y2="96"  class="w-red" stroke-width="1.5" stroke-linecap="round"/>
+
+    <rect x="72" y="14" width="13" height="76" rx="2" class="c-green"/>
+    <line x1="78.5" y1="90" x2="78.5" y2="108" class="w-green" stroke-width="1.5" stroke-linecap="round"/>
+
+    <rect x="90" y="42" width="13" height="26" rx="1.5" class="c-green"/>
+    <line x1="96.5" y1="34" x2="96.5" y2="74"  class="w-green" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
+  <text
+    x="440" y="112"
+    font-family="Arial Black, sans-serif"
+    font-weight="900"
+    font-size="100"
+    class="wordmark"
+    letter-spacing="-4">STREET</text>
+
+  <text
+    x="18" y="148"
+    font-family="Courier New, monospace"
+    font-weight="700"
+    font-size="12"
+    class="tagline"
+    letter-spacing="3">EARNINGS SURPRISE PREDICTOR</text>
+
+  <line x1="18" y1="158" x2="882" y2="158" class="divider" stroke-width="0.75"/>
+
+</svg>
