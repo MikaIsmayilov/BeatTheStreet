@@ -115,17 +115,19 @@ These are committed to the repo — Streamlit Cloud cannot run WRDS pulls at run
 
 **`pages/0_Home.py`** — Logo, key stats, "How it works", navigation links. Logo: `st.image("assets/beatthestreet_logo_dark.png", width=780)`.
 
-**`pages/1_Chart.py`** — Standalone price chart. Ticker input pre-fills from `st.session_state["pred_cache"]` if the user came from the Predictor. Features: timeframe pills (1D–All), interval pills (5m–1W) with auto-default per timeframe, measure tool (date range → $ and % change), draw tools (line, path, circle, rect, erase) via Plotly modebar, weekend rangebreaks + overnight hour skipping for intraday.
+**`pages/1_Chart.py`** — Standalone price chart. Ticker input supports `$NVDA`, `NVDA`, or plain-English names via `resolve_ticker()` / `yf.Search()` (same logic as Predictor). Pre-fills from `st.session_state["pred_cache"]` if navigating from the Predictor. Features: timeframe pills (1D–All), interval pills (5m–1W) with auto-default per timeframe, measure tool (date range → $ and % change), draw tools via Plotly modebar, weekend rangebreaks + overnight hour skipping for intraday. yfinance calls are cached via `fetch_ohlcv()` and `fetch_daily()` (`@st.cache_data(ttl=900)`) so pill/date-picker interactions don't re-hit the API.
 
 **`pages/1_Earnings_Predictor.py`** — Core prediction page:
 1. Ticker input → `resolve_ticker()` (supports `$NVDA`, `NVDA`, or plain-English names via `yf.Search()`)
 2. `fetch_live_features()` → 27 features
 3. Winsorize → impute → LightGBM → `predict_proba()`
 4. Prediction box (color-coded Beat/Meet/Miss), probability bar chart, SHAP waterfall
-5. Expandable feature-value table
-All results stored in `st.session_state["pred_cache"]` so reruns (timeframe changes, etc.) do not re-invoke the model.
+5. **News sentiment** — `fetch_news_sentiment()` (`@st.cache_data(ttl=3600)`) fetches up to 20 recent headlines via `yf.Ticker.news`, scores each with VADER (`SentimentIntensityAnalyzer`), and displays POS/NEU/NEG badges, compound scores, a stacked sentiment bar, and publisher attribution.
+6. Expandable feature-value table
 
-**`pages/2_Earnings_Calendar.py`** — Curated 23-ticker watchlist. Pulls next earnings date via `yf.Ticker.calendar`, runs model predictions, groups by week, renders colored cards.
+All model results stored in `st.session_state["pred_cache"]` so reruns don't re-invoke the model. News sentiment is cached separately and does not invalidate the prediction cache.
+
+**`pages/2_Earnings_Calendar.py`** — Curated 23-ticker watchlist. Pulls next earnings date via `yf.Ticker.calendar`, runs model predictions, groups by week, renders colored cards. Bottom expander ("How are these predictions made?") explains the confidence formula (`max(P(beat), P(meet), P(miss))`), the preprocessing pipeline, and renders a top-15 feature importance bar chart (gain importance) loaded live from `lightgbm_model.joblib`.
 
 **`pages/3_Backtesting.py`** — Runs LightGBM + Logistic Regression on 2022–2024 test set from `features.csv`. Three tabs: confusion matrix (row-normalized), quarterly accuracy line chart, per-class precision/recall/F1 table + bar chart.
 
@@ -177,6 +179,10 @@ return shap_vals[class_idx][0]
 
 **Macro at inference** — `src/live_features.py` calls `build_macro_monthly()` live at prediction time, which re-pulls FRED. This guarantees training-inference feature consistency. Most recent non-null value is used because some series (GDP, HY spread) lag by 1–2 months.
 
+**News sentiment (display-only, Path A)** — `fetch_news_sentiment(ticker)` in `pages/1_Earnings_Predictor.py` uses `vaderSentiment` (no API key) on `yf.Ticker.news` headlines. This is purely a display feature — sentiment is not a model input and does not affect predictions. VADER compound ≥ 0.05 → positive, ≤ −0.05 → negative, else neutral. yfinance ≥0.2.50 wraps news items under a `content` key; the function handles both old and new formats.
+
+**Path B (future)** — Incorporating historical news sentiment as a model feature requires a full RavenPack license via WRDS (BU currently has trial access covering only 2020-09-30). Professor Wysocki has been contacted for alternative data source recommendations.
+
 ---
 
 ## Data & Assets
@@ -187,6 +193,14 @@ return shap_vals[class_idx][0]
 - `assets/beatthestreet_logo_dark.png` — used on Home page (780px wide).
 - `assets/beatthestreet_logo_light.png` — kept for future use if theme policy changes.
 - `assets/beatthestreet_nav_icon.png` — used in sidebar (150px) and browser tab favicon.
+
+---
+
+## Pending / Future Work
+
+- **Model accuracy** — Current LightGBM test accuracy is 60.9%. Avenues to explore: additional features (estimate revision momentum, short interest, insider activity), hyperparameter tuning, ensembling with Logistic Regression.
+- **Sentiment as model feature (Path B)** — Requires historical news sentiment data with sufficient coverage (2005–2024). RavenPack trial on WRDS covers only one day. Awaiting professor recommendation for an alternative source. If a suitable dataset is found, sentiment features would need to be added to `src/feature_engineering.py`, `FEATURE_COLS` updated in both `src/train_model.py` and `src/live_features.py`, and the model retrained.
+- **Sentiment quality (Path A)** — VADER on short headlines is a rough signal. Upgrading to a financial-domain model (FinBERT) would improve accuracy but adds a heavy dependency.
 
 ---
 
