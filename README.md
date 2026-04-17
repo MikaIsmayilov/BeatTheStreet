@@ -1,6 +1,6 @@
 # BeatTheStreet
 
-![BeatTheStreet](assets/beatthestreet_logo.png)
+![BeatTheStreet](assets/beatthestreet_logo_dark.png)
 
 ### [beatthestreet.streamlit.app](https://beatthestreet.streamlit.app/)
 
@@ -154,7 +154,8 @@ At prediction time, `src/live_features.py` fetches a real-time feature snapshot 
 | Page | Description |
 |---|---|
 | **Home** | Overview, model stats, navigation guide |
-| **Earnings Predictor** | Enter any ticker or company name → live prediction with SHAP waterfall chart and interactive candlestick chart |
+| **Price Chart** | Interactive candlestick chart for any ticker — timeframe/interval pills, draw tools, price-change measure tool |
+| **Earnings Predictor** | Enter any ticker or company name → live prediction, probability bars, and SHAP waterfall explanation |
 | **Earnings Calendar** | Upcoming earnings for a curated watchlist with pre-run model predictions |
 | **Sector Overview** | Historical beat/miss rates broken down by sector |
 | **Backtesting** | Confusion matrix, per-class F1 scores, and quarterly accuracy on the 2022–2024 test set |
