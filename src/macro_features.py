@@ -36,11 +36,12 @@ Usage (from feature_engineering.py):
     from macro_features import build_macro_monthly, join_macro_to_earnings
 """
 
+import io
 import os
 import warnings
 import numpy as np
 import pandas as pd
-import pandas_datareader.data as web
+import requests
 
 warnings.filterwarnings("ignore")
 
@@ -74,8 +75,13 @@ def pull_fred(start: str = START_DATE, end: str = None) -> pd.DataFrame:
     frames = {}
     for name, series_id in FRED_SERIES.items():
         try:
-            s = web.DataReader(series_id, "fred", start, end)[series_id]
+            url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+            s = pd.read_csv(io.StringIO(resp.text), index_col=0, parse_dates=True).iloc[:, 0]
+            s = s.replace(".", np.nan)
             s = pd.to_numeric(s, errors="coerce")
+            s = s.loc[start:end]
             # Resample to month-end; GDP is quarterly so forward-fill gaps
             if name == "gdp_growth":
                 frames[name] = s.resample("ME").last().ffill()
