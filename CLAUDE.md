@@ -52,7 +52,7 @@ Streamlit (app.py)
 ## Phase 1 — Data Pipeline
 
 **`src/wrds_pull.py`**  
-Connects to WRDS via the `wrds` Python library (interactive login, credentials never hardcoded). Pulls four tables via SQL and saves to `data/raw/`:
+Connects to WRDS via the `wrds` Python library. Username `mikaismayilli` is hardcoded in `connect()`; password is prompted interactively on first run and cached in `~/.pgpass` — never stored in the repo. Pulls four tables via SQL and saves to `data/raw/`:
 - `compustat_quarterly.csv` — quarterly financials (`comp.fundq`)
 - `ibes_summary.csv` — analyst EPS estimates (`ibes.statsum_epsus`, `fpi='6'` = next fiscal quarter — do **not** change to `'1'`)
 - `crsp_monthly.csv` — monthly stock returns (`crsp.msf`)
