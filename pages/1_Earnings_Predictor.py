@@ -14,6 +14,8 @@ import joblib
 import streamlit as st
 import plotly.graph_objects as go
 import shap
+import yfinance as yf
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 warnings.filterwarnings("ignore")
 
@@ -233,6 +235,39 @@ def resolve_ticker(query: str) -> tuple:
     return raw.upper(), None
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_news_sentiment(ticker: str) -> list[dict]:
+    """Fetch up to 20 recent headlines via yfinance and score with VADER."""
+    sia  = SentimentIntensityAnalyzer()
+    news = yf.Ticker(ticker).news or []
+    results = []
+    for item in news[:20]:
+        # yfinance ≥0.2.50 wraps content; older builds expose fields at top level
+        content   = item.get("content", item)
+        title     = content.get("title", "")
+        if not title:
+            continue
+        compound  = sia.polarity_scores(title)["compound"]
+        sentiment = "positive" if compound >= 0.05 else ("negative" if compound <= -0.05 else "neutral")
+        provider  = content.get("provider", {})
+        publisher = provider.get("displayName", "") if isinstance(provider, dict) else item.get("publisher", "")
+        results.append({"title": title, "compound": compound,
+                         "sentiment": sentiment, "publisher": publisher})
+    return results
+
+
+def sentiment_bar_html(pos: int, neu: int, neg: int) -> str:
+    total = pos + neu + neg or 1
+    pw, nuw, nw = pos / total * 100, neu / total * 100, neg / total * 100
+    return (
+        f'<div style="display:flex;height:10px;border-radius:6px;overflow:hidden;margin:6px 0 14px">'
+        f'<div style="width:{pw:.1f}%;background:#2ecc71"></div>'
+        f'<div style="width:{nuw:.1f}%;background:#888"></div>'
+        f'<div style="width:{nw:.1f}%;background:#e74c3c"></div>'
+        f'</div>'
+    )
+
+
 # ── Main page ─────────────────────────────────────────────────────────────────
 st.title("Earnings Surprise Prediction")
 
@@ -379,6 +414,45 @@ st.markdown(
 feature_vals_arr = df_raw.values[0]
 fig_shap = shap_chart(shap_vals, FEATURE_COLS, feature_vals_arr, pred_label)
 st.plotly_chart(fig_shap, use_container_width=True)
+
+# ── News sentiment ────────────────────────────────────────────────────────────
+st.divider()
+st.subheader("Recent News Sentiment")
+with st.spinner("Fetching headlines…"):
+    articles = fetch_news_sentiment(ticker_input)
+
+if not articles:
+    st.caption("No recent headlines found.")
+else:
+    pos_n = sum(1 for a in articles if a["sentiment"] == "positive")
+    neu_n = sum(1 for a in articles if a["sentiment"] == "neutral")
+    neg_n = sum(1 for a in articles if a["sentiment"] == "negative")
+    total = len(articles)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Articles Analyzed", total)
+    c2.metric("Positive", f"{pos_n/total*100:.0f}%")
+    c3.metric("Neutral",  f"{neu_n/total*100:.0f}%")
+    c4.metric("Negative", f"{neg_n/total*100:.0f}%")
+    st.markdown(sentiment_bar_html(pos_n, neu_n, neg_n), unsafe_allow_html=True)
+
+    SENT_COLOR = {"positive": "#2ecc71", "neutral": "#aaa", "negative": "#e74c3c"}
+    SENT_LABEL = {"positive": "POS", "neutral": "NEU", "negative": "NEG"}
+    for a in articles:
+        color = SENT_COLOR[a["sentiment"]]
+        badge = SENT_LABEL[a["sentiment"]]
+        pub   = f" · {a['publisher']}" if a["publisher"] else ""
+        score = f"{a['compound']:+.2f}"
+        st.markdown(
+            f'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px">'
+            f'<span style="background:{color}33;color:{color};border:1px solid {color};'
+            f'border-radius:4px;padding:1px 6px;font-size:0.75rem;font-weight:700;'
+            f'white-space:nowrap">{badge} {score}</span>'
+            f'<span style="font-size:0.9rem">{a["title"]}'
+            f'<span style="color:#666;font-size:0.8rem">{pub}</span></span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 # ── Feature table (expandable) ────────────────────────────────────────────────
 with st.expander("Feature values used in this prediction"):

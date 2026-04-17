@@ -17,3 +17,4 @@ requests>=2.31            # FRED API (direct CSV download)
 # Visualization
 plotly>=5.18
 matplotlib>=3.7
+vaderSentiment>=3.3

@@ -39,6 +39,43 @@ st.markdown(
 
 CHART_CACHE = "chart_ticker"
 
+
+def resolve_ticker(query: str) -> tuple[str, str | None]:
+    raw = query.strip()
+    if raw.startswith("$"):
+        return raw.lstrip("$").strip().upper(), None
+    if raw == raw.upper() and len(raw) <= 5 and " " not in raw:
+        return raw.upper(), None
+    try:
+        results = yf.Search(raw, max_results=10).quotes
+        us_exchanges = {"NMS", "NYQ", "NGM", "NCM", "ASE", "PCX", "NASDAQ", "NYSE", "BTS"}
+        equities = [r for r in results
+                    if r.get("quoteType", "").upper() == "EQUITY"
+                    and r.get("exchange", "") in us_exchanges]
+        if not equities:
+            equities = [r for r in results if r.get("quoteType", "").upper() == "EQUITY"]
+        if equities:
+            ticker = equities[0]["symbol"]
+            name   = equities[0].get("shortname") or equities[0].get("longname", ticker)
+            return ticker.upper(), f'Matched **{name}** → using ticker **{ticker}**'
+    except Exception:
+        pass
+    return raw.upper(), None
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def fetch_ohlcv(ticker: str, period: str, interval: str) -> pd.DataFrame:
+    df = yf.Ticker(ticker).history(period=period, interval=interval)
+    df.index = df.index.tz_localize(None) if df.index.tz else df.index
+    return df
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def fetch_daily(ticker: str) -> pd.DataFrame:
+    df = yf.Ticker(ticker).history(period="2y", interval="1d")
+    df.index = df.index.tz_localize(None) if df.index.tz else df.index
+    return df
+
 # Pre-fill from prediction cache if navigating from the Predictor
 if CHART_CACHE not in st.session_state:
     st.session_state[CHART_CACHE] = st.session_state.get("pred_cache", {}).get("ticker", "")
@@ -54,9 +91,17 @@ with st.form("chart_form"):
     submitted = col_btn.form_submit_button("Load", use_container_width=True, type="primary")
 
 if submitted and ticker_raw:
-    st.session_state[CHART_CACHE] = ticker_raw.upper()
+    resolved, match_msg = resolve_ticker(ticker_raw)
+    st.session_state[CHART_CACHE] = resolved
+    if match_msg:
+        st.session_state["chart_match_msg"] = match_msg
+    else:
+        st.session_state.pop("chart_match_msg", None)
 
 ticker_input = st.session_state[CHART_CACHE]
+
+if "chart_match_msg" in st.session_state:
+    st.info(st.session_state["chart_match_msg"])
 
 if not ticker_input:
     st.info("Enter a ticker symbol above to load the chart.")
@@ -104,11 +149,8 @@ try:
 
     yf_interval = INT_YF.get(interval, "1d")
     yf_period   = MAX_PERIOD.get(interval, "max")
-    hist = yf.Ticker(ticker_input).history(period=yf_period, interval=yf_interval)
-    hist.index = hist.index.tz_localize(None) if hist.index.tz else hist.index
-
-    hist_daily = yf.Ticker(ticker_input).history(period="2y", interval="1d")
-    hist_daily.index = hist_daily.index.tz_localize(None) if hist_daily.index.tz else hist_daily.index
+    hist       = fetch_ohlcv(ticker_input, yf_period, yf_interval)
+    hist_daily = fetch_daily(ticker_input)
 
     with measure_col:
         st.markdown(

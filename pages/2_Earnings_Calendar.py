@@ -152,6 +152,85 @@ for week, group in cal_df.groupby("week"):
 </div>
 """, unsafe_allow_html=True)
 
-st.divider()
+with st.expander("How are these predictions made?"):
+    st.markdown("""
+### Model & Confidence
+
+Each card shows the output of a **LightGBM gradient-boosted tree** trained on
+104,938 earnings observations (2005–2019 train · 2020–2021 val · 2022–2024 test).
+
+**Confidence** is the model's predicted probability for the winning class:
+
+> `confidence = max(P(beat), P(meet), P(miss))`
+
+The model outputs a probability for all three outcomes simultaneously (softmax
+over 3 classes). Confidence reflects how decisively the model leans toward one
+outcome — *not* an absolute probability of being right. A 65% confident "beat"
+means the model assigned 65% of its probability mass to that outcome given the
+current feature snapshot.
+
+**Preprocessing pipeline** (applied identically at training and inference):
+1. Replace ±∞ → NaN
+2. Winsorize each feature at its 1st/99th training-set percentile
+3. Median imputation (training-set medians for any missing values)
+4. LightGBM predict_proba → argmax → label + confidence
+""")
+
+    st.markdown("### Top Predictive Features (by gain importance)")
+    st.caption("Gain importance measures how much each feature reduces prediction error across all trees.")
+
+    lgbm   = artifacts["lgbm"]
+    imps   = lgbm.feature_importances_          # sklearn API, importance_type='split' by default
+    # use gain if available
+    try:
+        gain_imp = lgbm.booster_.feature_importance(importance_type="gain")
+        imps = gain_imp
+    except Exception:
+        pass
+
+    feat_cols = joblib.load(f"{MODELS_DIR}/feature_cols.joblib")
+    FEATURE_LABELS = {
+        "meanest": "Mean Analyst EPS Estimate", "numest": "# Analyst Estimates",
+        "est_dispersion": "Estimate Dispersion", "sue_lag1": "Earnings Surprise (lag 1)",
+        "sue_lag2": "Earnings Surprise (lag 2)", "revenue_growth": "Revenue Growth (YoY)",
+        "roa": "Return on Assets", "accruals": "Accruals", "current_ratio": "Current Ratio",
+        "asset_growth": "Asset Growth (YoY)", "op_margin": "Operating Margin",
+        "ret_1m": "1-Month Return", "ret_3m": "3-Month Return", "ret_6m": "6-Month Return",
+        "vol_ratio": "Volume Ratio", "prc": "Stock Price",
+        "oil_1m_ret": "Oil Return (1M)", "oil_3m_ret": "Oil Return (3M)",
+        "vix_level": "VIX Level", "vix_1m_chg": "VIX Change (1M)",
+        "gs10_level": "10Y Treasury Yield", "gs10_1m_chg": "Treasury Yield Change (1M)",
+        "hy_spread": "HY Credit Spread", "hy_spread_chg": "HY Spread Change",
+        "gdp_growth": "GDP Growth", "unrate": "Unemployment Rate",
+        "unrate_chg": "Unemployment Change",
+    }
+
+    imp_df = pd.DataFrame({
+        "feature": feat_cols,
+        "importance": imps,
+        "label": [FEATURE_LABELS.get(c, c) for c in feat_cols],
+    }).sort_values("importance", ascending=False).head(15)
+
+    imp_df["importance_pct"] = imp_df["importance"] / imp_df["importance"].sum() * 100
+
+    fig = go.Figure(go.Bar(
+        x=imp_df["importance_pct"].values[::-1],
+        y=imp_df["label"].values[::-1],
+        orientation="h",
+        marker_color="#4a9eff",
+        text=[f"{v:.1f}%" for v in imp_df["importance_pct"].values[::-1]],
+        textposition="outside",
+        textfont=dict(size=13),
+    ))
+    fig.update_layout(
+        xaxis=dict(title="% of total gain", tickfont=dict(size=12), showgrid=False),
+        yaxis=dict(tickfont=dict(size=13)),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(t=10, b=10, l=10, r=60),
+        height=480,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
 st.caption("Predictions are model estimates, not financial advice. "
            "Earnings dates from Yahoo Finance — verify before trading.")
