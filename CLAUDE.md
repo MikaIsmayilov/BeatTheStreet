@@ -4,66 +4,150 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**BeatTheStreet** — a multi-page Streamlit web app that predicts whether a company will beat, meet, or miss analyst consensus EPS estimates ahead of earnings. Deployed at [beatthestreet.streamlit.app](https://beatthestreet.streamlit.app). GitHub: `MikaIsmayilov/BeatTheStreet`.
+**BeatTheStreet** — a multi-page Streamlit web app (BA870/AC820, BU Questrom, Spring 2026) that predicts whether a company will **beat**, **meet**, or **miss** analyst consensus EPS estimates ahead of earnings. Live at [beatthestreet.streamlit.app](https://beatthestreet.streamlit.app) · GitHub: `MikaIsmayilov/BeatTheStreet`.
+
+---
 
 ## Commands
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
 
-# Phase 1: Pull WRDS data (one-time, requires BU WRDS credentials — interactive login)
-python src/wrds_pull.py
+# Phase 1 — data (one-time, BU WRDS credentials required — interactive login)
+python src/wrds_pull.py          # pull Compustat, I/B/E/S, CRSP, CCM from WRDS
+python src/feature_engineering.py  # merge tables + compute features → data/processed/features.csv
+python src/macro_features.py     # refresh FRED macro data only
 
-# Phase 1: Merge datasets, engineer features, join macro data from FRED
-python src/feature_engineering.py
+# Phase 2 — train
+python src/train_model.py        # outputs 8 .joblib artifacts to models/
 
-# Phase 1b: Refresh macro features only (re-pulls FRED, updates macro_monthly.csv)
-python src/macro_features.py
-
-# Phase 2: Train models (outputs 8 .joblib artifacts to models/)
-python src/train_model.py
-
-# Phase 3: Run the Streamlit app locally
+# Phase 3 — run locally
 streamlit run app.py
 ```
+
+---
 
 ## Architecture
 
 ```
-WRDS (cloud) ──► data/raw/*.csv ──► data/processed/features.csv ──► models/*.joblib
-                                           ▲
-                              FRED REST API (macro_features.py)
+WRDS (SQL) ──► data/raw/*.csv ──► feature_engineering.py ──► data/processed/features.csv
+                                            ▲
+                                 FRED REST API (macro_features.py)
+                                            │
+                                            ▼
+                                 train_model.py ──► models/*.joblib
 
-                                                    ┌── yfinance (live prices + financials)
-Streamlit app (app.py) ──► pages/ ──► src/live_features.py ──┤
-                                                    └── FRED REST API (live macro snapshot)
+Streamlit (app.py)
+  └─► pages/
+        ├── 0_Home.py
+        ├── 1_Chart.py
+        ├── 1_Earnings_Predictor.py ──► src/live_features.py ──► yfinance + FRED
+        ├── 2_Earnings_Calendar.py  ──► src/live_features.py
+        ├── 3_Backtesting.py        ──► data/processed/features.csv + models/
+        └── 4_Sector_Overview.py    ──► data/processed/features.csv + models/
 ```
 
-**Phase 1 — Data**
-- `src/wrds_pull.py` — Pulls Compustat, I/B/E/S (`fpi='6'` = next fiscal quarter), CRSP, and CCM link table via SQL. `fpi='6'` must not change to `'1'` (annual).
-- `src/feature_engineering.py` — Joins the four WRDS tables and calls `macro_features.py`. Key joins: Compustat→CRSP via CCM (`linktype IN ('LU','LC')`), Compustat→I/B/E/S via `merge_asof` (±15-day tolerance on ticker+date), macro joined on the month *prior* to `rdq` using `(rdq.to_period('M') - 1).to_timestamp('M')`.
-- `src/macro_features.py` — Pulls 6 FRED series via direct CSV endpoint (`https://fred.stlouisfed.org/graph/fredgraph.csv?id={SERIES_ID}`) using `requests`. No API key needed. Resamples to month-end; GDP forward-filled quarterly→monthly.
+---
 
-**Phase 2 — Models**
+## Phase 1 — Data Pipeline
 
-Time split: train 2005–2019 | val 2020–2021 (early stopping) | test 2022–2024.
+**`src/wrds_pull.py`**  
+Connects to WRDS via the `wrds` Python library (interactive login, credentials never hardcoded). Pulls four tables via SQL and saves to `data/raw/`:
+- `compustat_quarterly.csv` — quarterly financials (`comp.fundq`)
+- `ibes_summary.csv` — analyst EPS estimates (`ibes.statsum_epsus`, `fpi='6'` = next fiscal quarter — do **not** change to `'1'`)
+- `crsp_monthly.csv` — monthly stock returns (`crsp.msf`)
+- `ccm_links.csv` — CRSP–Compustat link table (`crsp.ccmxpf_linktable`)
 
-`src/train_model.py` fits a preprocessing pipeline on train only: winsorize (1st/99th pct) → median impute → StandardScaler (LR only). Saves 8 artifacts to `models/`: `lightgbm_model.joblib`, `logistic_regression.joblib`, `imputer.joblib`, `scaler.joblib`, `win_low.joblib`, `win_high.joblib`, `label_encoder.joblib` (beat=0, meet=1, miss=2), `feature_cols.joblib`.
+**`src/feature_engineering.py`**  
+Merges the four WRDS tables and appends macro data:
+- Compustat → CRSP via CCM (`linktype IN ('LU','LC')`, `linkprim IN ('P','C')`)
+- Compustat → I/B/E/S via `pd.merge_asof` on ticker + date (±15-day tolerance)
+- Macro joined on the month *prior* to earnings date: `(rdq.to_period('M') - 1).to_timestamp('M')`
+- Output: `data/processed/features.csv` — 104,938 rows × 36 columns
 
-**Phase 3 — Streamlit App**
+**`src/macro_features.py`**  
+Fetches 6 FRED series via direct CSV endpoint (no API key): oil price, VIX, 10-yr Treasury, HY credit spread, GDP, unemployment. Resamples to month-end; GDP forward-filled quarterly → monthly. Called both at training time (via `feature_engineering.py`) and at live inference (via `live_features.py`) to ensure consistency.
 
-- `app.py` — Navigation shell only. Sets `page_config`, calls `inject_sidebar()` once (so sidebar CSS/logo applies to every page), then runs `st.navigation()`. No page content lives here.
-- `src/ui.py` — `inject_sidebar()` injects global CSS (font size bump to 18px, sidebar reordering so logo appears above nav links, larger nav pill sizing) and embeds the nav icon as base64 HTML. Also renders a fixed GitHub link at the sidebar bottom.
-- `pages/0_Home.py` — Landing page: logo, key stats, "How it works", navigation guide.
-- `pages/1_Earnings_Predictor.py` — Core page. Ticker input → `live_features.py` → LightGBM → Beat/Meet/Miss prediction + probability bars + interactive candlestick chart + SHAP waterfall.
-- `pages/2_Earnings_Calendar.py` — Upcoming earnings for a curated watchlist with model predictions.
-- `pages/3_Backtesting.py` — Confusion matrix, quarterly accuracy, per-class F1 on 2022–2024 test set.
-- `pages/4_Sector_Overview.py` — Historical beat/miss rates by sector/company.
+---
+
+## Phase 2 — Model Training (`src/train_model.py`)
+
+**Time splits** (strict, no lookahead):
+- Train: 2005–2019
+- Validation: 2020–2021 (LightGBM early stopping only)
+- Test: 2022–2024 (never touched during training)
+
+**Preprocessing pipeline** (fitted on train only, applied identically at inference):
+1. Replace ±inf → NaN
+2. Winsorize at 1st/99th percentile (`win_low.joblib`, `win_high.joblib`)
+3. Median imputation (`imputer.joblib`)
+4. StandardScaler for Logistic Regression only (`scaler.joblib`)
+
+**Models trained:**
+- Logistic Regression (baseline, `solver='saga'`, `class_weight='balanced'`, `C=0.5`)
+- LightGBM (main model, `objective='multiclass'`, 2000 tree ceiling, early stopping at 75 rounds with no improvement on val)
+
+**Label encoding** (`label_encoder.joblib`): beat=0, meet=1, miss=2  
+**Test accuracy**: LightGBM 60.9% vs. 33% random baseline
+
+**Saved artifacts** (`models/`):
+```
+lightgbm_model.joblib   logistic_regression.joblib
+imputer.joblib          scaler.joblib
+win_low.joblib          win_high.joblib
+label_encoder.joblib    feature_cols.joblib
+```
+These are committed to the repo — Streamlit Cloud cannot run WRDS pulls at runtime.
+
+---
+
+## Phase 3 — Streamlit App
+
+### Navigation & Shared UI
+
+**`app.py`** — Navigation shell only. Calls `inject_sidebar()` once so CSS and sidebar logo apply globally, then runs `st.navigation()`. Nav order: Home → Price Chart → Earnings Predictor → Earnings Calendar → Sector Overview → Backtesting.
+
+**`src/ui.py`** — `inject_sidebar()`: injects CSS (18px global font, sidebar logo above nav links, larger pill sizing), renders the `beatthestreet_nav_icon.png` as base64, and pins a GitHub link to the sidebar bottom.
+
+**`.streamlit/config.toml`** — Forces dark mode for all users (`base = "dark"`).
+
+### Pages
+
+**`pages/0_Home.py`** — Logo, key stats, "How it works", navigation links. Logo: `st.image("assets/beatthestreet_logo_dark.png", width=780)`.
+
+**`pages/1_Chart.py`** — Standalone price chart. Ticker input pre-fills from `st.session_state["pred_cache"]` if the user came from the Predictor. Features: timeframe pills (1D–All), interval pills (5m–1W) with auto-default per timeframe, measure tool (date range → $ and % change), draw tools (line, path, circle, rect, erase) via Plotly modebar, weekend rangebreaks + overnight hour skipping for intraday.
+
+**`pages/1_Earnings_Predictor.py`** — Core prediction page:
+1. Ticker input → `resolve_ticker()` (supports `$NVDA`, `NVDA`, or plain-English names via `yf.Search()`)
+2. `fetch_live_features()` → 27 features
+3. Winsorize → impute → LightGBM → `predict_proba()`
+4. Prediction box (color-coded Beat/Meet/Miss), probability bar chart, SHAP waterfall
+5. Expandable feature-value table
+All results stored in `st.session_state["pred_cache"]` so reruns (timeframe changes, etc.) do not re-invoke the model.
+
+**`pages/2_Earnings_Calendar.py`** — Curated 23-ticker watchlist. Pulls next earnings date via `yf.Ticker.calendar`, runs model predictions, groups by week, renders colored cards.
+
+**`pages/3_Backtesting.py`** — Runs LightGBM + Logistic Regression on 2022–2024 test set from `features.csv`. Three tabs: confusion matrix (row-normalized), quarterly accuracy line chart, per-class precision/recall/F1 table + bar chart.
+
+**`pages/4_Sector_Overview.py`** — Historical beat/miss/meet rates by year (full dataset), top consistent beaters/missers by company (min 20 quarters), per-class model accuracy on test set, label distribution pie.
+
+### Live Feature Construction (`src/live_features.py`)
+
+Called at inference for each ticker. Builds the same 27-feature vector used during training:
+
+| Group | Source | Method |
+|---|---|---|
+| Price / momentum | yfinance `.history()` | 1/3/6-month returns, volume ratio, price |
+| Analyst estimates | yfinance `.earnings_estimate` or `.info` | Mean EPS estimate, analyst count, dispersion |
+| Quarterly financials | yfinance `.quarterly_financials`, `.quarterly_balance_sheet`, `.quarterly_cashflow` | Revenue growth, ROA, op margin, accruals, current ratio, asset growth |
+| Macro | FRED via `build_macro_monthly()` | Most recent non-null value per series (some lag 1–2 months) |
+| SUE lags | Not available via yfinance | Always NaN — imputer fills training-set median |
+
+---
 
 ## Feature Set (27 total)
 
-`FEATURE_COLS` is defined in `src/live_features.py` and must exactly match what `src/train_model.py` uses. Changing one requires changing the other and retraining.
+`FEATURE_COLS` is defined in both `src/live_features.py` and `src/train_model.py` and must be identical. Any change requires retraining.
 
 | Group | Features |
 |---|---|
@@ -72,45 +156,40 @@ Time split: train 2005–2019 | val 2020–2021 (early stopping) | test 2022–2
 | CRSP | `ret_1m`, `ret_3m`, `ret_6m`, `vol_ratio`, `prc` |
 | Macro (FRED) | `oil_1m_ret`, `oil_3m_ret`, `vix_level`, `vix_1m_chg`, `gs10_level`, `gs10_1m_chg`, `hy_spread`, `hy_spread_chg`, `gdp_growth`, `unrate`, `unrate_chg` |
 
-`sue_lag1` / `sue_lag2` are always `NaN` at live inference (yfinance has no historical actuals). The imputer fills training-set medians. `est_revision_1m` / `est_revision_2m` exist in `features.csv` but are 100% NaN — excluded from `FEATURE_COLS`.
+`est_revision_1m` / `est_revision_2m` exist in `features.csv` but are 100% NaN — excluded from `FEATURE_COLS`.
+
+---
 
 ## Key Implementation Details
 
-**Session state caching on the Prediction page** — All prediction results are stored in `st.session_state["pred_cache"]` after a form submit. Every rerun (e.g. clicking a chart timeframe pill) reads from cache rather than re-running the model. This prevents the page from resetting.
+**Session-state prediction cache** — `st.session_state["pred_cache"]` stores all prediction outputs after a form submit. Every subsequent rerun reads from cache instead of re-running the model, so interacting with the chart or any widget doesn't reset the prediction.
 
-**SHAP version handling** — `shap.TreeExplainer.shap_values()` returns either a list of `(n_samples, n_features)` arrays (older SHAP) or a single `(n_samples, n_features, n_classes)` ndarray (SHAP ≥ 0.41). Both are handled in `compute_shap()`:
+**SHAP version compatibility** — `shap.TreeExplainer.shap_values()` returns a list of 2D arrays (SHAP < 0.41) or a single 3D ndarray (SHAP ≥ 0.41). `compute_shap()` handles both:
 ```python
 if isinstance(shap_vals, np.ndarray) and shap_vals.ndim == 3:
     return shap_vals[0, :, class_idx]
 return shap_vals[class_idx][0]
 ```
 
-**Candlestick chart** — Always fetches `MAX_PERIOD` for the selected interval (so zoom-out has data), then uses `xaxis.range` to set the initial visible window. `rangebreaks` skips weekends; intraday intervals also skip overnight hours (16:00–09:30). The `_last_tf_{ticker}` session state key tracks the previous timeframe to auto-reset the interval pill when the timeframe changes.
+**`load_explainer()` underscore prefix** — `def load_explainer(_lgbm_model)` — underscore tells `@st.cache_resource` to skip hashing the argument (LightGBM models are not hashable by Streamlit).
 
-**`load_explainer()` uses underscore prefix** — `def load_explainer(_lgbm_model)` — the underscore tells Streamlit's `@st.cache_resource` to skip hashing that argument (LightGBM models are not hashable).
+**Chart interval auto-reset** — `st.session_state[f"_last_tf_{ticker}"]` tracks the previous timeframe. When it changes, the interval pill is reset to the sensible default for that timeframe (e.g. 1M → 1D, 1D → 5m).
 
-**Ticker resolution** — `resolve_ticker()` in `pages/1_Earnings_Predictor.py`: `$NVDA` or all-uppercase ≤5-char no-space inputs are used directly as tickers; everything else goes through `yf.Search()` to resolve company names. Only US equity exchanges are preferred.
+**Macro at inference** — `src/live_features.py` calls `build_macro_monthly()` live at prediction time, which re-pulls FRED. This guarantees training-inference feature consistency. Most recent non-null value is used because some series (GDP, HY spread) lag by 1–2 months.
 
-**Macro fetch at inference** — `src/live_features.py` calls `build_macro_monthly()` live (pulls FRED via `requests`). This is the same function used during training, ensuring consistency. The most recent non-null value per column is used since some FRED series lag by 1–2 months.
+---
 
-## Data Notes
+## Data & Assets
 
-- `data/raw/` is gitignored (WRDS licensed data).
-- `data/processed/features.csv` — 104,938 rows × 36 columns. Beat 47.8% / Meet 24.8% / Miss 27.4%.
-- Label thresholds: beat ≥ +$0.02 vs. mean estimate, miss ≤ -$0.02, meet in between.
-- `models/` artifacts are committed to the repo (required for Streamlit Cloud; WRDS pulls are not possible at runtime on cloud).
+- `data/raw/` — gitignored (WRDS licensed). Must be re-pulled locally with `src/wrds_pull.py`.
+- `data/processed/features.csv` — 104,938 rows × 36 columns. Label split: Beat 47.8% / Meet 24.8% / Miss 27.4%. Label thresholds: beat ≥ +$0.02 vs. mean estimate; miss ≤ −$0.02; meet in between.
+- `models/` — committed to repo (8 `.joblib` files). Required for Streamlit Cloud.
+- `assets/beatthestreet_logo_dark.png` — used on Home page (780px wide).
+- `assets/beatthestreet_logo_light.png` — kept for future use if theme policy changes.
+- `assets/beatthestreet_nav_icon.png` — used in sidebar (150px) and browser tab favicon.
 
-## Assets
-
-- `assets/beatthestreet_logo.png` — horizontal logo, used on the Home page (780px wide) and in README.
-- `assets/beatthestreet_nav_icon.png` — square icon, used in sidebar (150px) and browser tab.
-- Two logos exist: one for dark mode. **A light-mode variant is still needed** (`beatthestreet_logo_light.png` / `beatthestreet_nav_icon_light.png`) — detect with `st.get_option("theme.base")` or `st_theme()` and swap accordingly.
-
-## Pending Work
-
-- **Light-mode logo** — Create light-mode variants of both logo assets. The app currently renders dark logos on light backgrounds.
-- **Separate chart tab** — Move the candlestick chart out of `pages/1_Earnings_Predictor.py` into its own tab (e.g. using `st.tabs(["Prediction", "Chart"])`) to reduce clutter on the prediction page.
+---
 
 ## Deployment
 
-Streamlit Community Cloud from `MikaIsmayilov/BeatTheStreet` (main branch, `app.py` entrypoint). `data/raw/` is gitignored; `data/processed/` and `models/` are committed and served directly.
+Streamlit Community Cloud from `MikaIsmayilov/BeatTheStreet` (main branch, `app.py` entrypoint). Every push to `main` triggers an automatic redeploy. `data/raw/` is gitignored; `data/processed/` and `models/` are committed and served directly — WRDS is not accessible at runtime on Streamlit Cloud.
