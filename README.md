@@ -147,16 +147,18 @@ At prediction time, `src/live_features.py` fetches a real-time feature snapshot 
 
 25 of 27 features are available live. The two lagged SUE features (`sue_lag1`, `sue_lag2`) require historical actuals not available from yfinance — the imputer fills these with training-set medians.
 
+In addition to the model prediction, the app fetches recent news headlines via yfinance and scores each with **VADER sentiment analysis**, displaying a per-article breakdown and aggregate sentiment bar alongside the forecast.
+
 ---
 
 ## App Pages
 
 | Page | Description |
 |---|---|
-| **Home** | Overview, model stats, navigation guide |
-| **Price Chart** | Interactive candlestick chart for any ticker — timeframe/interval pills, draw tools, price-change measure tool |
-| **Earnings Predictor** | Enter any ticker or company name → live prediction, probability bars, and SHAP waterfall explanation |
-| **Earnings Calendar** | Upcoming earnings for a curated watchlist with pre-run model predictions |
+| **Home** | Overview, model stats, data sources, and navigation guide |
+| **Price Chart** | Interactive candlestick chart — timeframe/interval pills, draw tools, price-change measure tool; supports ticker symbols and company names |
+| **Earnings Predictor** | Enter any ticker or company name → live prediction, probability bars, SHAP waterfall explanation, and real-time news sentiment |
+| **Earnings Calendar** | Upcoming earnings for a curated watchlist with pre-run model predictions and methodology explainer |
 | **Sector Overview** | Historical beat/miss rates broken down by sector |
 | **Backtesting** | Confusion matrix, per-class F1 scores, and quarterly accuracy on the 2022–2024 test set |
 
@@ -168,6 +170,7 @@ At prediction time, `src/live_features.py` fetches a real-time feature snapshot 
 |---|---|
 | ML Models | LightGBM, Scikit-learn (Logistic Regression, preprocessing) |
 | Explainability | SHAP |
+| Sentiment Analysis | VADER (vaderSentiment) |
 | Data (training) | WRDS (Compustat, I/B/E/S, CRSP) |
 | Data (live) | yfinance, FRED REST API |
 | Web App | Streamlit |
