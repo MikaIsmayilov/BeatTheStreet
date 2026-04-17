@@ -1,5 +1,7 @@
 # BeatTheStreet
 
+![BeatTheStreet](assets/beatthestreet_logo.png)
+
 ### [beatthestreet.streamlit.app](https://beatthestreet.streamlit.app/)
 
 An earnings surprise predictor that uses machine learning to forecast whether a company will **beat**, **meet**, or **miss** Wall Street's EPS consensus estimate — ahead of the announcement.
